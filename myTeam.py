@@ -11,6 +11,9 @@ import random, time, util
 from util import nearestPoint
 from game import Directions
 import game
+import logging
+
+logging.basicConfig(filename='test.txt', level=logging.DEBUG)
 
 #################
 # Team creation #
@@ -107,13 +110,26 @@ class AggressiveAgent(ReflexCaptureAgent):
     successor = self.getSuccessor(gameState, action)
     features['successorScore'] = self.getScore(successor)
 
-    # Compute distance to the nearest food
+    # Compute lists for food: top half, bot half
     foodList = self.getFood(successor).asList()
-    if len(foodList) > 0: # This should always be True,  but better safe than sorry
-      myPos = successor.getAgentState(self.index).getPosition()
-      minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-      features['distanceToFood'] = minDistance
-    return features
+
+    topFoodList = [(x, y) for x, y in foodList if y > 8]
+    botFoodList = [(x, y) for x, y in foodList if y <= 8]
+
+    if self.index > 1:
+      logging.info('I go top')
+      if len(topFoodList) > 0:
+        myPos = successor.getAgentState(self.index).getPosition()
+        minDistance = min([self.getMazeDistance(myPos, food) for food in topFoodList])
+        features['distanceToFood'] = minDistance
+      return features
+    else:
+      logging.info('I go bot')
+      if len(botFoodList) > 0:
+        myPos = successor.getAgentState(self.index).getPosition()
+        minDistance = min([self.getMazeDistance(myPos, food) for food in botFoodList])
+        features['distanceToFood'] = minDistance
+      return features
 
   def getWeights(self, gameState, action):
     return {'successorScore': 100, 'distanceToFood': -1}
