@@ -117,10 +117,13 @@ class AggressiveAgent(ReflexCaptureAgent):
     botFoodList = [(x, y) for x, y in foodList if y <= 8]
 
     if self.index > 1:
-      logging.info('I go top')
       if len(topFoodList) > 0:
         myPos = successor.getAgentState(self.index).getPosition()
         minDistance = min([self.getMazeDistance(myPos, food) for food in topFoodList])
+        features['distanceToFood'] = minDistance
+      else:
+        myPos = successor.getAgentState(self.index).getPosition()
+        minDistance = min([self.getMazeDistance(myPos, food) for food in botFoodList])
         features['distanceToFood'] = minDistance
       return features
     else:
