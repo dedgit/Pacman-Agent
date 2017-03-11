@@ -7,7 +7,7 @@
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 
 from captureAgents import CaptureAgent
-import random, time, util
+import random, time, util, math
 from util import nearestPoint
 from game import Directions
 import game
@@ -83,22 +83,6 @@ class ReflexCaptureAgent(CaptureAgent):
     weights = self.getWeights(gameState, action)
     return features * weights
 
-  def getFeatures(self, gameState, action):
-    """
-    Returns a counter of features for the state
-    """
-    features = util.Counter()
-    successor = self.getSuccessor(gameState, action)
-    features['successorScore'] = self.getScore(successor)
-    return features
-
-  def getWeights(self, gameState, action):
-    """
-    Normally, weights do not depend on the gamestate.  They can be either
-    a counter or a dictionary.
-    """
-    return {'successorScore': 1.0}
-
 class AggressiveAgent(ReflexCaptureAgent):
   """
   A reflex agent that seeks food. This is an agent
@@ -112,30 +96,53 @@ class AggressiveAgent(ReflexCaptureAgent):
 
     # Compute lists for food: top half, bot half
     foodList = self.getFood(successor).asList()
-
-    topFoodList = [(x, y) for x, y in foodList if y > 8]
-    botFoodList = [(x, y) for x, y in foodList if y <= 8]
-
+    walls = gameState.getWalls()
+    topFoodList = [(x, y) for x, y in foodList if y > math.floor(walls.height/2)]
+    botFoodList = [(x, y) for x, y in foodList if y <= math.floor(walls.height/2)]
+    
+    # Set distanceToFood->mindistance in features dictionary
     if self.index > 1:
+      myPos = successor.getAgentState(self.index).getPosition()
       if len(topFoodList) > 0:
-        myPos = successor.getAgentState(self.index).getPosition()
         minDistance = min([self.getMazeDistance(myPos, food) for food in topFoodList])
-        features['distanceToFood'] = minDistance
       else:
-        myPos = successor.getAgentState(self.index).getPosition()
         minDistance = min([self.getMazeDistance(myPos, food) for food in botFoodList])
-        features['distanceToFood'] = minDistance
-      return features
+      features['distanceToFood'] = minDistance
     else:
-      logging.info('I go bot')
+      myPos = successor.getAgentState(self.index).getPosition()
       if len(botFoodList) > 0:
-        myPos = successor.getAgentState(self.index).getPosition()
         minDistance = min([self.getMazeDistance(myPos, food) for food in botFoodList])
-        features['distanceToFood'] = minDistance
-      return features
+      else:
+        minDistance = min([self.getMazeDistance(myPos, food) for food in topFoodList])
+      features['distanceToFood'] = minDistance
+    
+    # Defensive when on myside in features dictionary
+    myState = successor.getAgentState(self.index)
+    myPos = myState.getPosition()
+    if not myState.isPacman:
+      enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+      invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
+      features['numInvaders'] = len(invaders)
+      if len(invaders) > 0:
+        dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+        features['invaderDistance'] = min(dists)
+    
+    # Avoid Ghosts on enemy side
+    if myState.isPacman:
+      enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+      ghosts = [a for a in enemies if not a.isPacman and a.getPosition() != None]
+      if len(ghosts) > 0:
+        for a in ghosts:
+          dists = [self.getMazeDistance(myPos, a.getPosition())]
+          if a.scaredTimer > 0:
+            features['scaredGhost'] = min(dists)
+          else:
+            features['ghostDistance'] = min(dists)
+
+    return features
 
   def getWeights(self, gameState, action):
-    return {'successorScore': 100, 'distanceToFood': -1}
+    return {'successorScore': 100, 'distanceToFood': -1, 'invaderDistance': -5, 'numInvaders': -1000, 'ghostDistance': 1, 'scaredGhost': -1.2}
 
 class DummyAgent(CaptureAgent):
   """
